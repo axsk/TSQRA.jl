@@ -13,22 +13,23 @@ function run()
 end
 
 function eigenfuns(D::Array{T}, E::Array{T}) where {T}
-    function Q(x)
-        x = reshape(x, size(E)...)
-        println(now())
-        x = apply_Q(x, E, D)
-        vec(x)
-    end
+    s = Tuple(size(E))
 
-    x = rand(T, prod(size(E)))
+    di = Di(vec(D))
+    x = rand(T, length(D))
+
+    function Q(x)
+        println(now())
+        vec(apply_Q(vec(x), vec(E), vec(D), s, Di=di))
+    end
 
     @time "solving eigenproblem" KrylovKit.eigsolve(
         Q,
         x,
         3,
         :LR,
-        verbosity=3,
+        verbosity=2,
         tol=1e-4,
-        maxiter=100)
+        maxiter=10000)
 end
 

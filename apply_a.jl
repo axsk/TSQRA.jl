@@ -117,13 +117,13 @@ function bands_A(dim::NTuple{N,Int}) where {N}
     return bands, offsets
 end
 
-
-function apply_A_banded(x, dims::NTuple{N,Int}) where {N}
-    y = zero(x)
+# compute the application of A by looping through all A=1 entries and adding the corresponding x entries
+function apply_A_banded!(y::AbstractVector, x::AbstractVector, dims::NTuple{N,Int}) where {N}
+    y .= 0
     len = length(x)
-    off = 1
-    for cd in dims
-        bs = off * cd
+    off = 1 # offset
+    for cd in dims  # current dimension length
+        bs = off * cd  # blocksize
         for i in 1:bs:len-off
             bso = bs - off
             to = i:i+bso-1
@@ -140,7 +140,13 @@ function apply_A_banded(x, dims::NTuple{N,Int}) where {N}
     return y
 end
 
-apply_A_banded(x) = reshape(apply_A_banded(vec(x), size(x)), size(x)...)
+# somehow manually reshaping saves time here
+function apply_A_banded(x, s=Tuple(size(x)))
+    x = vec(x)
+    y = similar(x)
+    apply_A_banded!(y, x, s)
+    y = reshape(y, s)
+end
 
 function reconstruct_matrix(action, len)
     mapreduce(hcat, 1:len) do i

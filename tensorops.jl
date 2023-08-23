@@ -1,8 +1,27 @@
 using LinearAlgebra
 using Strided
 
-apply_DQDi(x, E) = apply_A(x) .- E .* x
-apply_Q(x, E, D) = apply_A(D .* x) ./ D .- E .* x
+Di(D) = replace(D, 0=>convert(eltype(D),Inf))
+
+apply_Q(x, E, D) = reshape(apply_Q(vec(x), vec(E), vec(D), size(x)), size(x))
+apply_DQDi(x, E) = reshape(apply_DQDi(vec(x), vec(E), size(x)), size(x))
+
+function apply_Q(x::AbstractVector, E::AbstractVector, D::AbstractVector, s; Di=Di(D))
+    y = vec(apply_A_banded(x .* D, s)) ./ Di
+    y .-= E .* x
+    return y
+end
+
+function apply_DQDi(x::AbstractVector, E::AbstractVector, s)
+    y = apply_A_banded(x, s)
+    y .-= E .* x
+    return y
+end
+
+Qo(x, D::Array) = apply_A(x .* D) ./ Di(D)
+
+#apply_DQDi(x, E) = apply_A(x) .- E .* x
+#apply_Q(x, E, D) = apply_A(D .* x) ./ D .- E .* x
 
 function Qo(x, potentials::Vector)
     for (u, modes) in potentials
@@ -15,11 +34,11 @@ function Qo(x, potentials::Vector)
     return x
 end
 
-function Qo(x, d::Array)
-    x .*= d
-    x = @time "applying A" apply_A(x)
-    x ./= d
-end
+
+
+
+
+
 
 
 

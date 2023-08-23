@@ -8,6 +8,15 @@ vbond(x) = Float32(py"Vbond($x, 0, 1, par_bonds)")
 vangle(x) = Float32(py"Vangle($x, 0, 1, 2, par_angles)")
 vdihedral(x) = Float32(py"Vdihedral($x, 0, 1, 2, 3, par_dihedrals)[0]")
 
+"coulomb + lennard jones"
+function vclj(x)
+    # assuming k_ele =1
+    # q[1] = 1, q[2] = -1
+    d = norm(x[:, 1] - x[:, 2])
+    vc = -1 / d
+
+end
+
 # grid
 ngrid = 11
 grid = range(-1, 1, ngrid)
@@ -97,7 +106,7 @@ end
 function sqra_pentane(
     D=@time "  computed D" pentane_tensor())
 
-    replace!(D, 0 => 1e-6)
+    #replace!(D, 0 => minimum(D[D.>0] / 2))
 
     one = zero(D) .+ 1
     @time "  computed E" E = Qo(one, D)
