@@ -7,70 +7,18 @@ using PyCall
 vbond(x) = Float32(py"Vbond($x, 0, 1, par_bonds)")
 vangle(x) = Float32(py"Vangle($x, 0, 1, 2, par_angles)")
 vdihedral(x) = Float32(py"Vdihedral($x, 0, 1, 2, 3, par_dihedrals)[0]")
+vclj(x) = Float32(py"Vcoulomb($x, 0, 1, [1, -1], par_coulomb) + Vlj($x, 0, 1, par_lj)")
 
 "coulomb + lennard jones"
-function vclj(x)
+function vclj_julia(x)
     # assuming k_ele =1
     # q[1] = 1, q[2] = -1
     d = norm(x[:, 1] - x[:, 2])
     vc = -1 / d
-
+    vjl = 3^12 / d^12 - 2 * 3^6 / d^6
+    return vc + vjl
 end
 
-# grid
-ngrid = 11
-grid = range(-1, 1, ngrid)
-g = grid
-
-# grids for the reduced systems sys1/sys2
-#                   # corresponding degree of freedom in the 9 particle system
-sys1 = (g, g, g,    # 1 2 3
-    g, g, 0,        # 4 5 x
-    0, 0, 0,        # x x x
-    -2, 2, 0)        # x x x
-
-sys2 = (1, 0, 0,    # x x x
-    0, 0, 0,        # x x x
-    0, g, 0,        # x 6 x
-    g, g, g)        # 7 8 9
-
-# specification which grids span the bonds
-bonds = [
-    sys1[[1, 2, 3, 4, 5, 6]],
-    sys1[[4, 5, 6, 7, 8, 9]],
-    sys2[[4, 5, 6, 7, 8, 9]],
-    sys2[[7, 8, 9, 10, 11, 12]]
-]
-
-# modes along which the forces apply in the final 9 particle system
-bondinds = [
-    [1, 2, 3, 4, 5],
-    [4, 5],
-    [6],
-    [6, 7, 8, 9]
-]
-
-angles = [
-    sys1[[1, 2, 3, 4, 5, 6, 7, 8, 9]],
-    sys1[[4, 5, 6, 7, 8, 9, 10, 11, 12]],
-    sys2[[4, 5, 6, 7, 8, 9, 10, 11, 12]]
-]
-
-angleinds = [
-    [1, 2, 3, 4, 5],
-    [4, 5],
-    [6, 7, 8, 9]
-]
-
-dihedrals = [
-    sys1[[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]],
-    sys2[[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]]
-]
-
-dihedralinds = [
-    [1, 2, 3, 4, 5],
-    [6, 7, 8, 9]
-]
 
 function maketensor(func, bond)
     map(Iterators.product(bond...)) do coords
@@ -81,17 +29,75 @@ end
 
 maketensor(func::Function, bonds::Vector) = map(b -> maketensor(func, b), bonds)
 
-function pentane_tensor()
+function pentane_tensor(ngrid=11)
+    grid = range(-1, 1, ngrid)
+    g = grid
+
+    # grids for the reduced systems sys1/sys2
+    #                   # corresponding degree of freedom in the 9 particle system
+    sys1 = (g, g, g,    # 1 2 3
+        g, g, 0,        # 4 5 x
+        0, 0, 0,        # x x x
+        -2, 2, 0)        # x x x
+
+    sys2 = (1, 0, 0,    # x x x
+        0, 0, 0,        # x x x
+        0, g, 0,        # x 6 x
+        g, g, g)        # 7 8 9
+
+    # specification which grids span the bonds
+    bonds = [
+        sys1[[1, 2, 3, 4, 5, 6]],
+        sys1[[4, 5, 6, 7, 8, 9]],
+        sys2[[4, 5, 6, 7, 8, 9]],
+        sys2[[7, 8, 9, 10, 11, 12]]
+    ]
+
+    # modes along which the forces apply in the final 9 particle system
+    bondinds = [
+        [1, 2, 3, 4, 5],
+        [4, 5],
+        [6],
+        [6, 7, 8, 9]
+    ]
+
+    angles = [
+        sys1[[1, 2, 3, 4, 5, 6, 7, 8, 9]],
+        sys1[[4, 5, 6, 7, 8, 9, 10, 11, 12]],
+        sys2[[4, 5, 6, 7, 8, 9, 10, 11, 12]]
+    ]
+
+    angleinds = [
+        [1, 2, 3, 4, 5],
+        [4, 5],
+        [6, 7, 8, 9]
+    ]
+
+    dihedrals = [
+        sys1[[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]],
+        sys2[[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]]
+    ]
+
+    dihedralinds = [
+        [1, 2, 3, 4, 5],
+        [6, 7, 8, 9]
+    ]
+
+    coulomblj = [(g, g, g, g, g, g)]
+    coulombljinds = [[1, 2, 3, 7, 8, 9]]
+
     # compute the energies
     @time "bonds" vb = maketensor(vbond, bonds)
     @time "angles" va = maketensor(vangle, angles)
     @time "dihedrals" vd = maketensor(vdihedral, dihedrals)
+    @time "lj+coulomb" vc = maketensor(vclj_julia, coulomblj)
 
-    potentials = vcat(vb, va, vd)
+    potentials = vcat(vb, va, vd, vc)
     foreach(potentials) do p
         replace!(p, NaN => Inf)
     end
-    modes = vcat(bondinds, angleinds, dihedralinds)
+    modes = vcat(bondinds, angleinds, dihedralinds, coulombljinds)
+    @show modes
 
     # add the potentials along the modes
     x = zeros(Float32, repeat([length(grid)], 9)...)
