@@ -19,8 +19,110 @@ end
 
 maketensor(func::Function, bonds::Vector) = map(b -> maketensor(func, b), bonds)
 
-function pentane_tensor(ngrid=11, diam=3)
-    grid = range(-diam / 2, diam / 2, ngrid)
+
+defaultgrid = range(-2, 2, 5)
+D = py"D"
+beta = py"beta"
+
+function vtensor_system1(grid=defaultgrid)
+    g = grid
+
+    coords = (
+        g, g, g,  # 1 2 3
+        g, g, 0,  # 4 5 x
+        0, 0, 0,  # x x x
+        0, 1, 0)  # x x x
+
+    v = zeros(precision, repeat([length(grid)], 5)...)
+
+    forces = [
+        (vbond, [1, 2, 3, 4, 5, 6], [1, 2, 3, 4, 5]),
+        (vbond, [4, 5, 6, 7, 8, 9], [4, 5]),
+        (vangle, [1, 2, 3, 4, 5, 6, 7, 8, 9], [1, 2, 3, 4, 5]),
+        (vangle, [4, 5, 6, 7, 8, 9, 10, 11, 12], [4, 5]),
+        (vdihedral, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12], [1, 2, 3, 4, 5]),
+    ]
+
+    for (f, c, modes) in forces
+        t = maketensor(f, coords[c])
+        modal_sum!(v, t, modes)
+    end
+
+    replace!(v, NaN => Inf)
+
+    return v
+end
+
+function vtensor_system2(grid=defaultgrid)
+    g = grid
+
+    coords = (
+        1, 0, 0,  # x x x
+        0, 0, 0,  # x x x
+        0, g, 0,  # x 6 x
+        g, g, g)  # 7 8 9
+
+    v = zeros(precision, repeat([length(grid)], 4)...)
+
+    forces = [
+        (vbond, [4, 5, 6, 7, 8, 9], [6]),
+        (vbond, [7, 8, 9, 10, 11, 12], [6, 7, 8, 9]),
+        (vangle, [4, 5, 6, 7, 8, 9, 10, 11, 12], [6, 7, 8, 9]),
+        (vdihedral, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12], [6, 7, 8, 9]),
+    ]
+
+    for (f, c, modes) in forces
+        t = maketensor(f, coords[c])
+        modal_sum!(v, t, modes .- 5)  # .- 5 since we wrote the modes above for the combined system
+    end
+
+    replace!(v, NaN => Inf)
+
+    return v
+end
+
+function combined_system(grid=defaultgrid)
+    v1 = vtensor_system1(grid)
+    v2 = vtensor_system2(grid)
+
+    v = reshape(v1, size(v1)..., 1, 1, 1, 1) .+ reshape(v2, 1, 1, 1, 1, 1, size(v2)...)
+end
+
+function interacting_system(grid=defaultgrid;
+    v=combined_system(grid))
+    g = grid
+
+    coords = (g, g, g, g, g, g)
+
+    forces = [
+        (vclj, [1, 2, 3, 4, 5, 6], [1, 2, 3, 7, 8, 9])
+    ]
+
+    for (f, c, modes) in forces
+        t = maketensor(f, coords[c])
+        modal_sum!(v, t, modes)
+    end
+
+    replace!(v, NaN => Inf)
+
+    return v
+end
+
+function tensor_sqra(v; D, beta, delta)
+    exp.((-beta / 2) .* v) .* (D / delta^2)
+end
+
+function pentane_tensor2(grid=defaultgrid)
+    v = interacting_system(grid)
+
+    beta = py"beta"
+    D = py"D"
+    delta = step(grid)
+
+    tensor_sqra(v; beta, D, delta)
+end
+
+function pentane_tensor(grid=defaultgrid)
     @show step(grid)
     g = grid
 
@@ -40,38 +142,38 @@ function pentane_tensor(ngrid=11, diam=3)
     bonds = [
         sys1[[1, 2, 3, 4, 5, 6]],
         sys1[[4, 5, 6, 7, 8, 9]],
-        #sys2[[4, 5, 6, 7, 8, 9]],
-        #sys2[[7, 8, 9, 10, 11, 12]]
+        sys2[[4, 5, 6, 7, 8, 9]],
+        sys2[[7, 8, 9, 10, 11, 12]]
     ]
 
     # modes along which the forces apply in the final 9 particle system
     bondinds = [
         [1, 2, 3, 4, 5],
         [4, 5],
-        #[6],
-        #[6, 7, 8, 9]
+        [6],
+        [6, 7, 8, 9]
     ]
 
     angles = [
         sys1[[1, 2, 3, 4, 5, 6, 7, 8, 9]],
         sys1[[4, 5, 6, 7, 8, 9, 10, 11, 12]],
-        #sys2[[4, 5, 6, 7, 8, 9, 10, 11, 12]]
+        sys2[[4, 5, 6, 7, 8, 9, 10, 11, 12]]
     ]
 
     angleinds = [
         [1, 2, 3, 4, 5],
         [4, 5],
-        #[6, 7, 8, 9]
+        [6, 7, 8, 9]
     ]
 
     dihedrals = [
         sys1[[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]],
-        #sys2[[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]]
+        sys2[[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]]
     ]
 
     dihedralinds = [
         [1, 2, 3, 4, 5],
-        #[6, 7, 8, 9]
+        [6, 7, 8, 9]
     ]
 
     coulomblj = [(g, g, g, g, g, g)]
@@ -81,12 +183,11 @@ function pentane_tensor(ngrid=11, diam=3)
     @time "bonds" vb = maketensor(vbond, bonds)
     @time "angles" va = maketensor(vangle, angles)
     @time "dihedrals" vd = maketensor(vdihedral, dihedrals)
-    @time "lj+coulomb" vc = maketensor(vclj_julia, coulomblj)
+    @time "lj+coulomb" vc = maketensor(vclj, coulomblj)
 
-    global lj = vc
-
-    vc = []
-    coulombljinds = []
+    #global lj = vc
+    #vc = []
+    #coulombljinds = []
 
     potentials = vcat(vb, va, vd, vc)
     modes = vcat(bondinds, angleinds, dihedralinds, coulombljinds)
@@ -119,10 +220,8 @@ function pentane_tensor(ngrid=11, diam=3)
     return D
 end
 
-
 function sqra_pentane(;
-    ngrid=11,
-    D=@time "  computed D" pentane_tensor(ngrid))
+    D=@time "  computed D" pentane_tensor())
 
     # VALUEFIX
     #replace!(D, 0 => minimum(D[D.>0] / 2))
@@ -133,8 +232,6 @@ function sqra_pentane(;
     return D, E
 end
 
-
-
 "coulomb + lennard jones"
 function vclj_julia(x)
     # assuming k_ele =1
@@ -142,5 +239,5 @@ function vclj_julia(x)
     d = norm(x[:, 1] - x[:, 2])
     vc = -1 / d
     vjl = 3^12 / d^12 - 2 * 3^6 / d^6
-    return 0#vc + vjl
+    return vc + vjl
 end
