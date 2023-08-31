@@ -10,14 +10,15 @@ vangle(x) = precision(py"Vangle($x, 0, 1, 2, par_angles)")
 vdihedral(x) = precision(py"Vdihedral($x, 0, 1, 2, 3, par_dihedrals)[0]")
 vclj(x) = precision(py"Vcoulomb($x, 0, 1, [1, -1], par_coulomb) + Vlj($x, 0, 1, par_lj)")
 
-function maketensor(func, bond)
-    map(Iterators.product(bond...)) do coords
+
+# apply func to the coordinates in grid
+function maketensor(func, grid::Tuple)
+    map(Iterators.product(grid...)) do coords
         coords = reshape(collect(precision, coords), 3, :)
         func(coords)
     end
 end
 
-maketensor(func::Function, bonds::Vector) = map(b -> maketensor(func, b), bonds)
 
 
 defaultgrid = range(-2, 2, 5)
@@ -33,8 +34,6 @@ function vtensor_system1(grid=defaultgrid)
         0, 0, 0,  # x x x
         0, 1, 0)  # x x x
 
-    v = zeros(precision, repeat([length(grid)], 5)...)
-
     forces = [
         (vbond, [1, 2, 3, 4, 5, 6], [1, 2, 3, 4, 5]),
         (vbond, [4, 5, 6, 7, 8, 9], [4, 5]),
@@ -43,13 +42,13 @@ function vtensor_system1(grid=defaultgrid)
         (vdihedral, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12], [1, 2, 3, 4, 5]),
     ]
 
+    v = zeros(precision, repeat([length(grid)], 5)...)
     for (f, c, modes) in forces
         t = maketensor(f, coords[c])
         modal_sum!(v, t, modes)
     end
 
     replace!(v, NaN => Inf)
-
     return v
 end
 
@@ -57,27 +56,26 @@ function vtensor_system2(grid=defaultgrid)
     g = grid
 
     coords = (
-        1, 0, 0,  # x x x
+        0.77, 0, 0,  # x x x
         0, 0, 0,  # x x x
         0, g, 0,  # x 6 x
         g, g, g)  # 7 8 9
 
-    v = zeros(precision, repeat([length(grid)], 4)...)
-
     forces = [
-        (vbond, [4, 5, 6, 7, 8, 9], [6]),
-        (vbond, [7, 8, 9, 10, 11, 12], [6, 7, 8, 9]),
-        (vangle, [4, 5, 6, 7, 8, 9, 10, 11, 12], [6, 7, 8, 9]),
-        (vdihedral, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12], [6, 7, 8, 9]),
+        (vbond, 4:9, [6]),
+        (vbond, 7:12, [6, 7, 8, 9]),
+        (vangle, 4:12, [6, 7, 8, 9]),
+        (vdihedral, 1:12, [6, 7, 8, 9]),
     ]
 
+    v = zeros(precision, repeat([length(grid)], 4)...)
     for (f, c, modes) in forces
         t = maketensor(f, coords[c])
         modal_sum!(v, t, modes .- 5)  # .- 5 since we wrote the modes above for the combined system
+        println(v[1])
     end
 
     replace!(v, NaN => Inf)
-
     return v
 end
 
@@ -102,7 +100,6 @@ function interacting_system(grid=defaultgrid;
         t = maketensor(f, coords[c])
         modal_sum!(v, t, modes)
     end
-
     replace!(v, NaN => Inf)
 
     return v
@@ -179,11 +176,14 @@ function pentane_tensor(grid=defaultgrid)
     coulomblj = [(g, g, g, g, g, g)]
     coulombljinds = [[1, 2, 3, 7, 8, 9]]
 
+    # vectorized for multiple grids
+    maketensorvec(func::Function, grids::Vector) = map(b -> maketensor(func, b), grids)
+
     # compute the energies
-    @time "bonds" vb = maketensor(vbond, bonds)
-    @time "angles" va = maketensor(vangle, angles)
-    @time "dihedrals" vd = maketensor(vdihedral, dihedrals)
-    @time "lj+coulomb" vc = maketensor(vclj, coulomblj)
+    @time "bonds" vb = maketensorvec(vbond, bonds)
+    @time "angles" va = maketensorvec(vangle, angles)
+    @time "dihedrals" vd = maketensorvec(vdihedral, dihedrals)
+    @time "lj+coulomb" vc = maketensorvec(vclj, coulomblj)
 
     #global lj = vc
     #vc = []
