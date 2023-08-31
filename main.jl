@@ -11,9 +11,9 @@ function run(; grid=defaultgrid, iter=30)
     f = eigenfuns(D, E; iter)
     return D, E, f
 end
-
-function sqra_pentane1(grid=defaultgrid)
-    v = vtensor_system1(grid)
+lucaflux = 27.714876666666658
+function sqra_pentane_new(
+    v=vtensor_system1(defaultgrid))
     D = tensor_sqra(v; beta)
     #@assert isapprox(D[1], 0.57709024, rtol=1e-5)
     N = length(D)
@@ -23,16 +23,26 @@ function sqra_pentane1(grid=defaultgrid)
     return D, E
 end
 
-function sparse_Q(D, E)
+function confirm_luca()
+    D, E = sqra_pentane_new()
+    @show v1 = eigenfuns(D, E)[1] * lucaflux
+
+    D, E = sqra_pentane_new(vtensor_system2())
+    @show v2 = eigenfuns(D, E)[1] * lucaflux
+
+    v1, v2
+end
+
+function sparse_Q(D, E, maxcol=10)
     function Q(x)
         apply_Q(x, vec(E), vec(D), size(D))
     end
-    reconstruct_matrix_sparse(Q, length(D))
+    reconstruct_matrix_sparse(Q, length(D); maxcol)
 end
 
 function eigenfuns(D::Array{T}, E::Array{T}; iter=100) where {T}
 
-    s = Tuple(size(E))
+    s = Tuple(size(D))
 
     di = Di(vec(D))
 
@@ -93,9 +103,9 @@ function EfromD(D)
 end
 
 using SparseArrays
-function reconstruct_matrix_sparse(action, len)
+function reconstruct_matrix_sparse(action, len; maxcol=len)
     A = spzeros(len, len)
-    for i in 1:len
+    for i in 1:maxcol
         x = zeros(len)
         x[i] = 1
         A[:, i] = action(x)
