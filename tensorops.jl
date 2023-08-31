@@ -1,10 +1,11 @@
 using LinearAlgebra
 using Strided
 
-Di(D) = replace(D, 0=>convert(eltype(D),Inf))
+# VALUEFIX
+Di(D) = replace(D, 0 => convert(eltype(D), Inf))
 
 apply_Q(x, E, D) = reshape(apply_Q(vec(x), vec(E), vec(D), size(x)), size(x))
-apply_DQDi(x, E) = reshape(apply_DQDi(vec(x), vec(E), size(x)), size(x))
+apply_AE(x, E) = reshape(apply_AE(vec(x), vec(E), size(x)), size(x))
 
 function apply_Q(x::AbstractVector, E::AbstractVector, D::AbstractVector, s; Di=Di(D))
     y = vec(apply_A_banded(x .* D, s)) ./ Di
@@ -12,15 +13,15 @@ function apply_Q(x::AbstractVector, E::AbstractVector, D::AbstractVector, s; Di=
     return y
 end
 
-function apply_DQDi(x::AbstractVector, E::AbstractVector, s)
-    y = apply_A_banded(x, s)
+function apply_AE(x::AbstractVector, E::AbstractVector, s)
+    y = vec(apply_A_banded(x, s))
     y .-= E .* x
     return y
 end
 
-Qo(x, D::Array) = apply_A(x .* D) ./ Di(D)
+Qo(x, D::Array; Di=Di(D)) = apply_A(x .* D) ./ Di
 
-#apply_DQDi(x, E) = apply_A(x) .- E .* x
+#apply_AE(x, E) = apply_A(x) .- E .* x
 #apply_Q(x, E, D) = apply_A(D .* x) ./ D .- E .* x
 
 function Qo(x, potentials::Vector)
