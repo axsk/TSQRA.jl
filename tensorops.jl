@@ -4,13 +4,17 @@ using Strided
 # VALUEFIX
 Di(D) = replace(D, 0 => convert(eltype(D), Inf))
 
-apply_Q(x, E, D) = reshape(apply_Q(vec(x), vec(E), vec(D), size(x)), size(x))
-apply_AE(x, E) = reshape(apply_AE(vec(x), vec(E), size(x)), size(x))
+apply_Q(x, E, D) = reshape(apply_Q(vec(x), vec(E), vec(D), size(D)), size(x))
+apply_AE(x, E) = reshape(apply_AE(vec(x), vec(E), size(D)), size(x))
 
 function apply_Q(x::AbstractVector, E::AbstractVector, D::AbstractVector, s; Di=Di(D))
-    y = vec(apply_A_banded(x .* D, s)) ./ Di
+    y = apply_Qo(x, D, s; Di)
     y .-= E .* x
     return y
+end
+
+function apply_Qo(x::AbstractVector, D::AbstractVector, s; Di=Di(D))
+    y = vec(apply_A_banded(x .* D, s)) ./ Di
 end
 
 function apply_AE(x::AbstractVector, E::AbstractVector, s)

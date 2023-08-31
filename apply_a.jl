@@ -148,14 +148,6 @@ function apply_A_banded(x, s=Tuple(size(x)))
     y = reshape(y, s)
 end
 
-function reconstruct_matrix(action, len)
-    mapreduce(hcat, 1:len) do i
-        x = zeros(len)
-        x[i] = 1
-        action(x)
-    end
-end
-
 function benchmark_apply_a(x=rand(Float32, repeat([10], 9)...))
     @show Threads.nthreads()
     for A in [generate_local_A_dense, generate_local_A_sparse]

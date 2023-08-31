@@ -105,8 +105,9 @@ function interacting_system(grid=defaultgrid;
     return v
 end
 
-function tensor_sqra(v; D, beta, delta)
-    exp.((-beta / 2) .* v) .* (D / delta^2)
+function tensor_sqra(v; beta)
+    # note that the flux cancels for sqra
+    exp.((-beta / 2) .* v) #.* (D / delta^2)
 end
 
 function pentane_tensor2(grid=defaultgrid)
