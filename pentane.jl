@@ -10,7 +10,6 @@ vangle(x) = precision(py"Vangle($x, 0, 1, 2, par_angles)")
 vdihedral(x) = precision(py"Vdihedral($x, 0, 1, 2, 3, par_dihedrals)[0]")
 vclj(x) = precision(py"Vcoulomb($x, 0, 1, [1, -1], par_coulomb) + Vlj($x, 0, 1, par_lj)")
 
-
 # apply func to the coordinates in grid
 function maketensor(func, grid::Tuple)
     map(Iterators.product(grid...)) do coords
@@ -19,9 +18,8 @@ function maketensor(func, grid::Tuple)
     end
 end
 
-
-
 defaultgrid = range(-2, 2, 5)
+biggrid = range(-1.35, 1.35, 10)
 D = py"D"
 beta = py"beta"
 
@@ -72,7 +70,6 @@ function vtensor_system2(grid=defaultgrid)
     for (f, c, modes) in forces
         t = maketensor(f, coords[c])
         modal_sum!(v, t, modes .- 5)  # .- 5 since we wrote the modes above for the combined system
-        println(v[1])
     end
 
     replace!(v, NaN => Inf)
@@ -86,8 +83,14 @@ function combined_system(grid=defaultgrid)
     v = reshape(v1, size(v1)..., 1, 1, 1, 1) .+ reshape(v2, 1, 1, 1, 1, 1, size(v2)...)
 end
 
+function interaction_only(grid=defaultgrid)
+    g = grid
+    t = maketensor(vclj, (g, g, g, g, g, g))
+end
+
 function interacting_system(grid=defaultgrid;
-    v=combined_system(grid))
+    v=combined_system(grid),
+    clip=30)
     g = grid
 
     coords = (g, g, g, g, g, g)
@@ -101,6 +104,7 @@ function interacting_system(grid=defaultgrid;
         modal_sum!(v, t, modes)
     end
     replace!(v, NaN => Inf)
+    v[v.>clip] .= Inf
 
     return v
 end

@@ -1,19 +1,19 @@
-includet("apply_a.jl")
-includet("tensorops.jl")
-includet("pentane.jl")
+include("apply_a.jl")
+include("tensorops.jl")
+include("pentane.jl")
 
 using KrylovKit
 using Dates: now
 
-function run(; grid=defaultgrid, iter=30)
-    @time "precomputing" D, E = sqra_pentane1(grid)
-
-    f = eigenfuns(D, E; iter)
+function run(; grid=biggrid, maxiter=30,
+    v=@time "D" interacting_system(grid))
+    #@time "D" v = interacting_system(grid)
+    @time "E" D, E = sqra_pentane_new(v)
+    @time "eigenfuns" f = eigenfuns(D, E; maxiter)
     return D, E, f
 end
 lucaflux = 27.714876666666658
-function sqra_pentane_new(
-    v=vtensor_system1(defaultgrid))
+function sqra_pentane_new(v=vtensor_system1(defaultgrid))
     D = tensor_sqra(v; beta)
     #@assert isapprox(D[1], 0.57709024, rtol=1e-5)
     N = length(D)
@@ -40,41 +40,31 @@ function sparse_Q(D, E, maxcol=10)
     reconstruct_matrix_sparse(Q, length(D); maxcol)
 end
 
-function eigenfuns(D::Array{T}, E::Array{T}; iter=100) where {T}
-
+function eigenfuns(D::Array{T}, E::Array{T}; maxiter=100, n=5, tol=1e-6) where {T}
     s = Tuple(size(D))
-
-    di = Di(vec(D))
 
     # VALUEFIX
     inds = vec(D) .> 0
 
-    x = rand(T, sum(inds))
+    x0 = rand(T, sum(inds))
     xt = zeros(T, length(D))
 
-
-
     function Q(x)
+        GC.gc()
         xt[inds] .= x
         #vec(apply_Q(vec(x), vec(E), vec(D), s, Di=di))
+        println(now())
         xx = vec(apply_AE(vec(xt), vec(E), s))
+        GC.gc()
         xx[inds]
     end
-    print(now())
+
     @time "solving eigenproblem" KrylovKit.eigsolve(
-        Q,
-        x,
-        4,
-        :LR,
-        verbosity=2,
-        tol=1e-4,
-        maxiter=iter,
-        issymmetric=true)
+        Q, x0, n, :LR, verbosity=2, tol=tol, maxiter=maxiter, issymmetric=false)
 end
 
 function eigenfuns(E::Array{T}; iter=100, cutoff=Inf, tol=1e-6, inds=vec(E) .< cutoff, n=4) where {T}
     s = Tuple(size(E))
-
 
     println("cutting off $(1-(sum(inds)/length(E))) of all values")
 
