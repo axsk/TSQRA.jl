@@ -19,22 +19,13 @@ end
 
 lucaflux = 27.714876666666658
 
-function confirm_lucas_eigenvalues()
-    D, E = tensor_sqra(system1(biggrid))
-    @show v1 = eigenfuns(D, E)[1] * lucaflux
-
-    D, E = tensor_sqra(system2(biggrid))
-    @show v2 = eigenfuns(D, E)[1] * lucaflux
-
-    v1, v2
-end
 
 function eigenfuns(D::Array{T}, E::Array{T};
     initialguess=nothing,
     n=5,
     maxiter=100,
     tol=1e-6,
-    verbosity=2) where {T}
+    verbosity=1) where {T}
 
     s = Tuple(size(D))
 

@@ -1,15 +1,17 @@
 # experiment
 # sensivity of eigenvalues on interaction strength
 
+logspace(start, stop, length) = exp.(range(log(start), log(stop), length))
+
 function exp_sens(;
     grid=ngrid(3),
     strengths=0:0.1:1,
     clip=30,
-    verbosity=2)
+    verbosity=1)
 
     vc = combined_system(grid)
     vi = interaction_only(grid)
-    evs = []
+    global evs = []
 
     @show fl = flux(grid)
 
@@ -20,9 +22,9 @@ function exp_sens(;
         v, = eigenfuns(d, e, n=2; verbosity)
         v *= fl
         @show v
-        push!(evs, v[2])
+        push!(evs, v)
     end
-    strengths, evs
+    evs
 end
 
 function combinesystems(sys1, bond1, sys2, bond2)
@@ -36,4 +38,17 @@ function combinesystems(sys1, bond1, sys2, bond2)
         s2[b] = size(sys2, i)
     end
     reshape(sys1, Tuple(s1)) .+ reshape(sys2, Tuple(s2))
+end
+
+
+function confirm_lucas_eigenvalues(grid=biggrid)
+    @show flx = flux(grid)
+
+    D, E = tensor_sqra(system1(grid), clip=Inf)
+    @show v1 = eigenfuns(D, E)[1] * flx
+
+    D, E = tensor_sqra(system2(grid), clip=Inf)
+    @show v2 = eigenfuns(D, E)[1] * flx
+
+    real.(v1), real.(v2)
 end
