@@ -18,10 +18,10 @@ function maketensor(func, grid::Tuple)
     end
 end
 
+ngrid(n) = range(-1.35, 1.35, n)
 defaultgrid = range(-2, 2, 5)
 biggrid = range(-1.35, 1.35, 10)
-D = py"D"
-beta = py"beta"
+
 
 function system1(grid=defaultgrid)
     g = grid
@@ -30,7 +30,7 @@ function system1(grid=defaultgrid)
         g, g, g,  # 1 2 3
         g, g, 0,  # 4 5 x
         0, 0, 0,  # x x x
-        0, 1, 0)  # x x x
+        0, 10, 0)  # x x x
 
     forces = [
         (vbond, [1, 2, 3, 4, 5, 6], [1, 2, 3, 4, 5]),
@@ -54,7 +54,7 @@ function system2(grid=defaultgrid)
     g = grid
 
     coords = (
-        0.77, 0, 0,  # x x x
+        10, 0, 0,  # x x x
         0, 0, 0,  # x x x
         0, g, 0,  # x 6 x
         g, g, g)  # 7 8 9
@@ -76,38 +76,40 @@ function system2(grid=defaultgrid)
     return v
 end
 
+function interaction_only(grid=defaultgrid)
+    g = grid
+    t = maketensor(vclj, (g, g, g, g, g, g))
+    replace!(t, NaN => Inf)
+    t
+end
+
 function combined_system(grid=defaultgrid)
-    v1 = vtensor_system1(grid)
-    v2 = vtensor_system2(grid)
+    v1 = system1(grid)
+    v2 = system2(grid)
 
     v = reshape(v1, size(v1)..., 1, 1, 1, 1) .+ reshape(v2, 1, 1, 1, 1, 1, size(v2)...)
 end
 
-function interaction_only(grid=defaultgrid)
-    g = grid
-    t = maketensor(vclj, (g, g, g, g, g, g))
-end
 
 function interacting_system(grid=defaultgrid;
     v=combined_system(grid),
-    clip=30)
+    clip=30,
+    interaction=1)
+
     g = grid
 
-    coords = (g, g, g, g, g, g)
+    i = interaction_only(grid)
+    n = size(i, 1)
+    i = reshape(i, (n, n, n, 1, 1, 1, n, n, n))
 
-    forces = [
-        (vclj, [1, 2, 3, 4, 5, 6], [1, 2, 3, 7, 8, 9])
-    ]
-
-    for (f, c, modes) in forces
-        t = maketensor(f, coords[c])
-        modal_sum!(v, t, modes)
-    end
-    replace!(v, NaN => Inf)
-    v[v.>clip] .= Inf
+    v .+= i * interaction
 
     return v
 end
+
+
+
+
 
 "coulomb + lennard jones"
 function vclj_julia(x)

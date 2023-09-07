@@ -1,11 +1,23 @@
 using LinearAlgebra
 using Strided
 
-function tensor_sqra(v::Array; beta)
-    # note that the flux cancels for sqra
+const kB = 0.008314463
+beta(T=300) = 1 / kB / T
+DiffusionConstant(T=300, mass=1, gamma=1) = kB * T / mass / gamma
+flux(dx, D=DiffusionConstant()) = D / dx^2
+flux(dx::AbstractRange, D) = flux(step(dx), D)
+
+function tensor_sqra(v::Array; beta=beta(), clip)
+    v = clippotential(v, clip)
     D = exp.((-beta / 2) .* v) #.* (D / delta^2)
     E = compute_E(D)
     return D, E
+end
+
+function clippotential(t, clip)
+    t = replace(t, NaN => Inf)
+    t[t.>clip] .= Inf
+    return t
 end
 
 function compute_E(D)
