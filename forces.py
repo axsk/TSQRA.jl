@@ -73,8 +73,7 @@ def Vdihedral(X, i, j, k, l, par_dihedrals):
     x = np.dot(v, w)
     y = np.dot(np.cross(b1, v), w)
     
-    psi = np.degrees(np.arctan2(y, x))
-    
+    psi = np.arctan2(y, x)    
     return par_dihedrals[0] * np.cos( par_dihedrals[1] * psi + par_dihedrals[2] ), psi
 
 def Vcoulomb(X, i, j, q, par_coulomb):
@@ -96,23 +95,23 @@ par_bonds = np.array([kb, r0])
 
 # Angle parameters
 ka         = 1
-theta0     = np.pi / 3
+theta0     =  2/3*np.pi
 par_angles = np.array([ka, theta0])
 
 # Dihedral parameters
 kd             = 1
 periodicity    = 2
-psi0           = np.pi / 3
+psi0           = 0
 par_dihedrals  = np.array([kd, periodicity, psi0])
 
 # Coulomb parameters
 kele        = 1
 par_coulomb = kele
-q           = np.array([+1, 0, 0, 0, -1])
+q           = np.array([+1, 0, 0, 0, +1])
 
 # LJ parameters
 eps        = 1
-req        = 3
+req        = 1
 par_lj  = np.array([eps, req])
 
 # Number of atoms

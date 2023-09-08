@@ -7,7 +7,7 @@ DiffusionConstant(T=300, mass=1, gamma=1) = kB * T / mass / gamma
 flux(dx, D=DiffusionConstant()) = D / dx^2
 flux(dx::AbstractRange, D) = flux(step(dx), D)
 
-function tensor_sqra(v::Array; beta=beta(), clip)
+function tensor_sqra(v::Array; beta=beta(), clip=Inf)
     v = clippotential(v, clip)
     D = exp.((-beta / 2) .* v) #.* (D / delta^2)
     E = compute_E(D)
@@ -68,4 +68,17 @@ end
 function sparse_Q(D, E, maxcol=10)
     Q(x) = apply_Q(x, vec(E), vec(D), size(D))
     reconstruct_matrix_sparse(Q, length(D); maxcol)
+end
+
+function combinesystems(sys1, bond1, sys2, bond2)
+    totalsize = maximum(vcat(bond1, bond2))
+    s1 = ones(Int, totalsize)
+    s2 = ones(Int, totalsize)
+    for (i, b) in enumerate(bond1)
+        s1[b] = size(sys1, i)
+    end
+    for (i, b) in enumerate(bond2)
+        s2[b] = size(sys2, i)
+    end
+    reshape(sys1, Tuple(s1)) .+ reshape(sys2, Tuple(s2))
 end

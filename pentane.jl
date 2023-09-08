@@ -2,13 +2,7 @@ using PyCall
 
 precision = Float64
 
-# load and wrap the forces from luca's code
-@pyinclude("forces.py")
 
-vbond(x) = precision(py"Vbond($x, 0, 1, par_bonds)")
-vangle(x) = precision(py"Vangle($x, 0, 1, 2, par_angles)")
-vdihedral(x) = precision(py"Vdihedral($x, 0, 1, 2, 3, par_dihedrals)[0]")
-vclj(x) = precision(py"Vcoulomb($x, 0, 1, [1, -1], par_coulomb) + Vlj($x, 0, 1, par_lj)")
 
 # apply func to the coordinates in grid
 function maketensor(func, grid::Tuple)
@@ -18,11 +12,6 @@ function maketensor(func, grid::Tuple)
     end
 end
 
-ngrid(n) = range(-1.35, 1.35, n)
-defaultgrid = range(-2, 2, 5)
-biggrid = range(-1.35, 1.35, 10)
-
-
 function system1(grid=defaultgrid)
     g = grid
 
@@ -30,7 +19,7 @@ function system1(grid=defaultgrid)
         g, g, g,  # 1 2 3
         g, g, 0,  # 4 5 x
         0, 0, 0,  # x x x
-        0, 10, 0)  # x x x
+        0, pi, 0)  # x x x
 
     forces = [
         (vbond, [1, 2, 3, 4, 5, 6], [1, 2, 3, 4, 5]),
@@ -54,7 +43,7 @@ function system2(grid=defaultgrid)
     g = grid
 
     coords = (
-        10, 0, 0,  # x x x
+        pi, pi, 0,  # x x x
         0, 0, 0,  # x x x
         0, g, 0,  # x 6 x
         g, g, g)  # 7 8 9
@@ -110,13 +99,56 @@ end
 
 
 
+vbond(x) = vbondjl(x)
+vangle(x) = vanglejl(x)
+vdihedral(x) = vdihedraljl(x)
+vclj(x) = vclj_julia(x)
+
+function vbondjl(x; kb=1, r0=0.5)
+    r = norm(x[:, 1] - x[:, 2])
+    return 0.5 * kb * (r - r0)^2
+end
+
+function vanglejl(x; ka=1, theta0=2 / 3 * pi)
+    a = x[:, 1] - x[:, 2]
+    b = x[:, 3] - x[:, 2]
+    theta = acos(clamp(a ⋅ b / (norm(a) * norm(b)), -1, 1))
+    return 0.5 * ka * (theta - theta0)^2
+end
+
+function vdihedraljl(x; kd=1, periodicity=2, psi0=0)
+    r1, r2, r3 = @views x[:, 2] - x[:, 1], x[:, 3] - x[:, 2], x[:, 4] - x[:, 3]
+    b = r2
+    u = cross(b, r1)
+    w = cross(b, r3)
+    psi = atan(cross(u, w)' * b, u' * w * norm(b))
+    kd * cos(periodicity * psi + psi0)
+end
 
 "coulomb + lennard jones"
-function vclj_julia(x)
+function vclj_julia(x; kele=1, charge=1, eps=1, req=1)
     # assuming k_ele =1
     # q[1] = 1, q[2] = -1
-    d = norm(x[:, 1] - x[:, 2])
-    vc = -1 / d
-    vjl = 3^12 / d^12 - 2 * 3^6 / d^6
-    return vc + vjl
+    d = @views norm(x[:, 1] - x[:, 2])
+    coul = kele^2 * charge / d
+    lenj = eps * ((req / d)^12 - 2 * (req / d)^6)
+    return coul + lenj
+end
+
+testpython = false
+if testpython
+
+    # load and wrap the forces from luca's code
+    @pyinclude("forces.py")
+
+    vbondpy(x) = precision(py"Vbond($x, 0, 1, par_bonds)")
+    vanglepy(x) = precision(py"Vangle($x, 0, 1, 2, par_angles)")
+    vdihedralpy(x) = precision(py"Vdihedral($x, 0, 1, 2, 3, par_dihedrals)[0]")
+    vcljpy(x) = precision(py"Vcoulomb($x, 0, 1, [1,1], par_coulomb) + Vlj($x, 0, 1, par_lj)")
+
+    x = rand(3, 4)
+    @assert vbondjl(x) ≈ vbondpy(x)
+    @assert vanglejl(x) ≈ vanglepy(x)
+    @assert vdihedraljl(x) ≈ vdihedralpy(x)
+    @assert vclj_julia(x) ≈ vcljpy(x)
 end

@@ -27,28 +27,31 @@ function exp_sens(;
     evs
 end
 
-function combinesystems(sys1, bond1, sys2, bond2)
-    totalsize = maximum(vcat(bond1, bond2))
-    s1 = ones(Int, totalsize)
-    s2 = ones(Int, totalsize)
-    for (i, b) in enumerate(bond1)
-        s1[b] = size(sys1, i)
-    end
-    for (i, b) in enumerate(bond2)
-        s2[b] = size(sys2, i)
-    end
-    reshape(sys1, Tuple(s1)) .+ reshape(sys2, Tuple(s2))
-end
-
-
-function confirm_lucas_eigenvalues(grid=biggrid)
-    @show flx = flux(grid)
+function confirm_lucas_eigenvalues(grid=biggrid; tol=1e-9)
+    flx = flux(grid)
 
     D, E = tensor_sqra(system1(grid), clip=Inf)
-    @show v1 = eigenfuns(D, E)[1] * flx
+    v1 = eigenfuns(D, E; tol)[1] * flx
 
     D, E = tensor_sqra(system2(grid), clip=Inf)
-    @show v2 = eigenfuns(D, E)[1] * flx
+    v2 = eigenfuns(D, E; tol)[1] * flx
 
     real.(v1), real.(v2)
+end
+
+function combine_evs(v1, v2)
+    evs = Float64[]
+    for v1 in v1, v2 in v2
+        push!(evs, v1 + v2)
+    end
+    return sort(evs, rev=true)
+end
+
+function luca_evs_over_ngrid(nrange=4:2:10)
+    evs = map(nrange) do n
+        v1, v2 = confirm_lucas_eigenvalues(ngrid(n, 1))
+        combine_evs(v1, v2)[2:5]
+    end
+    scatter(nrange, reduce(hcat, evs)', labels=1:4) |> display
+    evs
 end

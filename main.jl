@@ -1,10 +1,14 @@
 include("apply_a.jl")
 include("tensorops.jl")
 include("pentane.jl")
-include("sens_exp.jl")
+include("experiments.jl")
 
 using KrylovKit
 using Dates: now
+
+ngrid(n, a=1.35) = range(-a, a, n)
+defaultgrid = ngrid(5, 2)
+biggrid = ngrid(10, 1.35)
 
 function run(;
     grid=biggrid,
@@ -79,4 +83,14 @@ function visualize(x, g; kwargs...)
     c = reshape(c, 3, :)
     plot!(eachrow(c)...; kwargs...)
     scatter!(eachrow(c)...; kwargs...)
+end
+
+function vis_combined_max(g=defaultgrid)
+    ##D, _ = tensor_sqra(combined_system(g), clip=30)
+    v1 = system1(g)
+    v2 = system2(g)
+
+
+    @show mx = vcat(Tuple(findmin(v1)[2])..., (Tuple(findmin(v2)[2]))...)
+    visualize(mx, g)
 end
