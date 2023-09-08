@@ -27,14 +27,14 @@ function exp_sens(;
     evs
 end
 
-function confirm_lucas_eigenvalues(grid=biggrid; tol=1e-9)
+function confirm_lucas_eigenvalues(grid=defaultgrid)
     flx = flux(grid)
 
     D, E = tensor_sqra(system1(grid), clip=Inf)
-    v1 = eigenfuns(D, E; tol)[1] * flx
+    v1 = eigenfuns(D, E)[1] * flx
 
     D, E = tensor_sqra(system2(grid), clip=Inf)
-    v2 = eigenfuns(D, E; tol)[1] * flx
+    v2 = eigenfuns(D, E)[1] * flx
 
     real.(v1), real.(v2)
 end

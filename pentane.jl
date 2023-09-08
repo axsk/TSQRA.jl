@@ -61,6 +61,9 @@ function system2(grid=defaultgrid)
         modal_sum!(v, t, modes .- 5)  # .- 5 since we wrote the modes above for the combined system
     end
 
+    # ensure that y4 is positive as assumed in modeling of sys1
+    v[findall(g .< 0), :, :, :] .= Inf
+
     replace!(v, NaN => Inf)
     return v
 end

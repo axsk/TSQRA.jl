@@ -6,12 +6,11 @@ include("experiments.jl")
 using KrylovKit
 using Dates: now
 
-ngrid(n, a=1.35) = range(-a, a, n)
-defaultgrid = ngrid(5, 2)
-biggrid = ngrid(10, 1.35)
+ngrid(n, a=1) = range(-a, a, n)
+defaultgrid = ngrid(10, 1)
 
 function run(;
-    grid=biggrid,
+    grid=defaultgrid,
     maxiter=30,
     v=@time "D" interacting_system(grid))
 
@@ -93,4 +92,16 @@ function vis_combined_max(g=defaultgrid)
 
     @show mx = vcat(Tuple(findmin(v1)[2])..., (Tuple(findmin(v2)[2]))...)
     visualize(mx, g)
+end
+
+function findnmin(v, n)
+    v = copy(v)
+    inds = []
+    for i in 1:n
+        @show m = findmin(v)
+        ind = m[2]
+        @show v[ind] = Inf
+        push!(inds, ind)
+    end
+    return inds
 end
