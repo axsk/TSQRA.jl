@@ -2,8 +2,8 @@ include("apply_a.jl")
 include("tensorops.jl")
 include("pentane.jl")
 include("experiments.jl")
+include("eigen.jl")
 
-using KrylovKit
 using Dates: now
 
 ngrid(n, a=1) = range(-a, a, n)
@@ -19,47 +19,7 @@ function run(;
     return D, E, f
 end
 
-
 lucaflux = 27.714876666666658
-
-
-function eigenfuns(D::Array{T}, E::Array{T};
-    initialguess=nothing,
-    n=5,
-    maxiter=100,
-    tol=1e-6,
-    verbosity=1) where {T}
-
-    s = Tuple(size(D))
-
-    # VALUEFIX
-    inds = vec(D) .> 0
-
-    x0 = isnothing(initialguess) ? rand(T, sum(inds)) : initialguess[inds]
-    xt = zeros(T, length(D))
-
-    function Q(x)
-        #GC.gc()
-        xt[inds] .= x
-        #println(now())
-        xx = vec(apply_AE(vec(xt), vec(E), s))
-        #GC.gc()
-        xx[inds]
-    end
-
-    GC.gc()
-
-    f = @time "solving eigenproblem" KrylovKit.eigsolve(
-        Q, x0, n, :LR; verbosity, tol, maxiter, issymmetric=false)
-
-    efs = zeros(T, length(D), n)
-    for i in 1:n
-        efs[inds, i] = f[2][i]
-    end
-
-    evs = f[1]
-    return evs, efs, f
-end
 
 """ construct an initial guess for the interacting systems krylovspace
 by computing the eigenfunction of the combined system """

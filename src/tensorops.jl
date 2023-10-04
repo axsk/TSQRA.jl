@@ -70,15 +70,3 @@ function sparse_Q(D, E, maxcol=10)
     reconstruct_matrix_sparse(Q, length(D); maxcol)
 end
 
-function combinesystems(sys1, bond1, sys2, bond2)
-    totalsize = maximum(vcat(bond1, bond2))
-    s1 = ones(Int, totalsize)
-    s2 = ones(Int, totalsize)
-    for (i, b) in enumerate(bond1)
-        s1[b] = size(sys1, i)
-    end
-    for (i, b) in enumerate(bond2)
-        s2[b] = size(sys2, i)
-    end
-    reshape(sys1, Tuple(s1)) .+ reshape(sys2, Tuple(s2))
-end
