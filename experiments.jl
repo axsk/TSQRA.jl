@@ -52,6 +52,6 @@ function luca_evs_over_ngrid(nrange=4:2:10)
         v1, v2 = confirm_lucas_eigenvalues(ngrid(n, 1))
         combine_evs(v1, v2)[2:5]
     end
-    scatter(nrange, reduce(hcat, evs)', labels=1:4) |> display
+    scatter(nrange, reduce(hcat, evs)', legend=false, title="eigenvalues of combined system for different grids", xlabel="nbins", ylabel="λ") |> display
     evs
 end

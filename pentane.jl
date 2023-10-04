@@ -6,9 +6,12 @@ precision = Float64
 
 # apply func to the coordinates in grid
 function maketensor(func, grid::Tuple)
+    #x = zeros(length(grid))
+    #x = reshape(x, 3, :)
     map(Iterators.product(grid...)) do coords
-        coords = reshape(collect(precision, coords), 3, :)
-        func(coords)
+        x = reshape(collect(precision, coords), 3, :)
+        #x[:] .= coords
+        func(x)
     end
 end
 
