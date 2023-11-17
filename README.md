@@ -6,11 +6,11 @@ The original force-fields and code by L. Donati were used as a reference and are
 
 ## Core functionality
 
-`eigen.jl:`: Krylov eigensolver computing the TSQRA spectrum.
-`apply_a.jl`: Different implementations for the application of the adjacency operator A
-`tensorops.jl`: Application of Q, AE, .. and modal_sum!() for construction of the whole tensor from lower-order tensors
-`pentane.jl`: Forcefields and computation of the two pentane subsystems, the whole system etc.
-`experiments.jl`: Compute the sensivity analysis of the eigenvalues wrt. to interaction strength.
+- `eigen.jl:`: Krylov eigensolver computing the TSQRA spectrum.
+- `apply_a.jl`: Different implementations for the application of the adjacency operator A
+- `tensorops.jl`: Application of Q, AE, .. and modal_sum!() for construction of the whole tensor from lower-order tensors
+- `pentane.jl`: Forcefields and computation of the two pentane subsystems, the whole system etc.
+- `experiments.jl`: Compute the sensivity analysis of the eigenvalues wrt. to interaction strength.
 
 ## See also
 The supplementary material to [1], found at https://github.com/zib-cmd/article-tsqra contains a KISS implementation, as well as the python notebooks to create the article's data.
