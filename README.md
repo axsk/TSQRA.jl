@@ -12,6 +12,8 @@ The original force-fields and code by L. Donati were used as a reference and are
 `pentane.jl`: Forcefields and computation of the two pentane subsystems, the whole system etc.
 `experiments.jl`: Compute the sensivity analysis of the eigenvalues wrt. to interaction strength.
 
+## See also
+The supplementary material to [1], found at https://github.com/zib-cmd/article-tsqra contains a KISS implementation, as well as the python notebooks to create the article's data.
 
 ## References
 
