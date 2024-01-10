@@ -1,5 +1,7 @@
 using AxisAlgorithms
 using TensorOperations: tensorcontract
+using LinearAlgebra
+using SparseArrays
 
 apply_A(x) = apply_A_banded(x)
 generate_local_A(dim) = generate_local_A_sparse(dim)
@@ -124,7 +126,7 @@ function apply_A_banded!(y::AbstractVector, x::AbstractVector, dims::NTuple{N,In
     off = 1 # offset
     for cd in dims  # current dimension length
         bs = off * cd  # blocksize
-        for i in 1:bs:len-off
+        @inbounds for i in 1:bs:len-off
             bso = bs - off
             to = i:i+bso-1
 
@@ -141,7 +143,7 @@ function apply_A_banded!(y::AbstractVector, x::AbstractVector, dims::NTuple{N,In
 end
 
 # somehow manually reshaping saves time here
-function apply_A_banded(x, s=Tuple(size(x)))
+function apply_A_banded(x, s=Tuple(size(x)); kwargs...)
     x = vec(x)
     y = similar(x)
     apply_A_banded!(y, x, s)
@@ -155,10 +157,24 @@ function benchmark_apply_a(x=rand(Float32, repeat([10], 9)...))
         for meth in [apply_A_tensorcontract, apply_A_axis, apply_A_axis_md,
             apply_A_axis_md_threaded, apply_A_axis_threaded]
             println(meth)
-            try
+            #try
                 @time meth(x, generate_A=A)
-            catch
-            end
+            #catch
+            #end
         end
     end
+end
+
+function benchmark2(;
+    dims=8,
+    bins=8,
+    x=rand(repeat([bins], dims)...)
+)
+    Q = grid_adjacency(size(x))
+    display(@benchmark $Q * vec($x))
+    display(@benchmark apply_A_axis($x))
+    display(@benchmark apply_A_axis_md($x))
+    display(@benchmark apply_A_banded($x))
+    nothing
+
 end
