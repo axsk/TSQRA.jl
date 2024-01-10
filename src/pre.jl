@@ -1,7 +1,9 @@
 using LinearAlgebra: CartesianIndex, pinv
 using Random: randexp
-using PCCAPlus
+
 using SqraCore
+using PCCAPlus
+include("tsqra_simple.jl")
 
 """ Gillespie for SQRA Tensor Q """
 function gillespie(i::CartesianIndex, Q::AbstractArray, T::Float64)
@@ -21,12 +23,15 @@ function gillespie(i::CartesianIndex, Q::AbstractArray, T::Float64)
     end
 end
 
+""" computes the vector of all rates to the cell `i` neighbours """
 neighborrates(i::CartesianIndex, D, ni=neighboroffsets(D)) =
     map(ni) do n
         j = i + n
         j in CartesianIndices(D) ? D[j] / D[i] : 0.0
     end
 
+""" generate the relative cartesian indices pointing to all neighbours,
+i.e. (1, 0, 0), (-1, 0, 0), (0, 1, 0), ..."""
 neighboroffsets(x::Array) = neighboroffsets(ndims(x))
 function neighboroffsets(dim)
     inds = CartesianIndex{dim}[]
@@ -41,11 +46,13 @@ function neighboroffsets(dim)
     return inds
 end
 
+""" estimate K(chi) via Monte-Carlo using the Gillespie simulation """
 Kchi_gillespie(start, chi, D, tau, nkoop) =
     1 / nkoop * sum(1:nkoop) do _
         chi[gillespie(start, D, tau), :]
     end
 
+""" Compute the macroscopic rate approximation """
 function pre(chi, D, tau, nkoop, nstart)
     starts = rand(CartesianIndices(Qc), nstart)
 
@@ -58,10 +65,8 @@ function pre(chi, D, tau, nkoop, nstart)
     Qc = log(Kc ./ tau)
 end
 
-using SqraCore
-using PCCAPlus
-include("tsqra_simple.jl")
 
+""" as part 1 in the article """
 function example(; nx=50, tau=1.0, nkoop=100, nstart=10, nchi=2)
     V1(x) = (x^2 - 1)^2 + 1 * x
     V2(y) = 2 * y^2
