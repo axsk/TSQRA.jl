@@ -17,34 +17,23 @@ function gillespie(i::CartesianIndex, Q::AbstractArray, T::Float64)
         t > T && return i
         cs ./= rate
         r = rand()
-        j = findfirst(.>(r), cs)::Int
+        j = findfirst(>(r), cs)
         i += ni[j]
-        j += 1
     end
 end
 
 """ computes the vector of all rates to the cell `i` neighbours """
 neighborrates(i::CartesianIndex, D, ni=neighboroffsets(D)) =
-    map(ni) do n
-        j = i + n
+    map(i .+ ni) do j
         j in CartesianIndices(D) ? D[j] / D[i] : 0.0
     end
 
 """ generate the relative cartesian indices pointing to all neighbours,
 i.e. (1, 0, 0), (-1, 0, 0), (0, 1, 0), ..."""
 neighboroffsets(x::Array) = neighboroffsets(ndims(x))
-function neighboroffsets(dim)
-    inds = CartesianIndex{dim}[]
-    x = zeros(Int, dim)
-    for i in 1:dim
-        x .= 0
-        x[i] = 1
-        push!(inds, CartesianIndex(x...))
-        x[i] = -1
-        push!(inds, CartesianIndex(x...))
-    end
-    return inds
-end
+neighboroffsets(dim) =
+    [CartesianIndex(setindex!(zeros(Int, dim), dir, i)...)
+     for i in 1:dim for dir in (-1, 1)]
 
 """ estimate K(chi) via Monte-Carlo using the Gillespie simulation """
 Kchi_gillespie(start, chi, D, tau, nkoop) =
