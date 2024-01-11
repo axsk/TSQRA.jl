@@ -3,6 +3,38 @@ using TensorOperations: tensorcontract
 using LinearAlgebra
 using SparseArrays
 
+# compute the application of A by looping through all A=1 entries and adding the corresponding x entries
+function apply_A_banded!(y::AbstractVector, x::AbstractVector, dims::NTuple{N,Int}) where {N}
+    y .= 0
+    len = length(x)
+    off = 1 # offset
+    for cd in dims  # current dimension length
+        bs = off * cd  # blocksize
+        @inbounds for i in 1:bs:len-off
+            bso = bs - off
+            to = i:i+bso-1
+
+            # multithreaded blas version, somehow slower
+            #@views axpy!(true, x[to], y[to.+off])
+            #@views axpy!(true, x[to.+off], y[to])
+
+            @views y[to] .+= x[to.+off]
+            @views y[to.+off] .+= x[to]
+        end
+        off = bs
+    end
+    return y
+end
+
+# somehow manually reshaping saves time here
+function apply_A_banded(x, s=Tuple(size(x)); kwargs...)
+    x = vec(x)
+    y = similar(x)
+    apply_A_banded!(y, x, s)
+    y = reshape(y, s)
+end
+
+
 apply_A(x) = apply_A_banded(x)
 generate_local_A(dim) = generate_local_A_sparse(dim)
 
@@ -119,36 +151,6 @@ function bands_A(dim::NTuple{N,Int}) where {N}
     return bands, offsets
 end
 
-# compute the application of A by looping through all A=1 entries and adding the corresponding x entries
-function apply_A_banded!(y::AbstractVector, x::AbstractVector, dims::NTuple{N,Int}) where {N}
-    y .= 0
-    len = length(x)
-    off = 1 # offset
-    for cd in dims  # current dimension length
-        bs = off * cd  # blocksize
-        @inbounds for i in 1:bs:len-off
-            bso = bs - off
-            to = i:i+bso-1
-
-            # multithreaded blas version, somehow slower
-            #@views axpy!(true, x[to], y[to.+off])
-            #@views axpy!(true, x[to.+off], y[to])
-
-            @views y[to] .+= x[to.+off]
-            @views y[to.+off] .+= x[to]
-        end
-        off = bs
-    end
-    return y
-end
-
-# somehow manually reshaping saves time here
-function apply_A_banded(x, s=Tuple(size(x)); kwargs...)
-    x = vec(x)
-    y = similar(x)
-    apply_A_banded!(y, x, s)
-    y = reshape(y, s)
-end
 
 function benchmark_apply_a(x=rand(Float32, repeat([10], 9)...))
     @show Threads.nthreads()

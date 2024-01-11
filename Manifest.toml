@@ -840,7 +840,7 @@ version = "1.6.2"
 
 [[deps.PCCAPlus]]
 deps = ["Arpack", "LinearAlgebra", "Optim", "SparseArrays"]
-git-tree-sha1 = "c8840efca2001d1980cf4d1d254f669a12a3bc56"
+path = "../PCCAPlus.jl"
 uuid = "f48fc343-7e38-490c-be15-e66d68689cd5"
 version = "1.0.0"
 

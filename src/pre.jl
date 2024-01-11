@@ -74,14 +74,15 @@ function example(; nx=50, tau=1.0, nkoop=100, nstart=10, nchi=2)
 
     # TODO: adjust beta (and h?)
     beta = 1
+
     h = step(grid)
 
     Q1 = SqraCore.sqra_grid(V1.(grid); beta, h) |> collect  # collect to get dense
     Q2 = SqraCore.sqra_grid(V2.(grid); beta, h) |> collect
 
     # compute isolated membership functions
-    chi1 = PCCAPlus.pcca(Q1, nchi)
-    chi2 = PCCAPlus.pcca(Q2, nchi)
+    chi1 = PCCAPlus.pcca(Q1, nchi)[1]
+    chi2 = PCCAPlus.pcca(Q2, nchi)[1]
 
     # compute combined membership function
     chi = stack(c1 .* c2' for c1 in eachcol(chi1) for c2 in eachcol(chi2))
@@ -90,17 +91,60 @@ function example(; nx=50, tau=1.0, nkoop=100, nstart=10, nchi=2)
     D = compute_D(potentials, indices, [grid, grid])
 
     # PRE for coupled rate matrix with combined memberships as intial guess
-    Q = pre(chi, D, tau, nstart, nkoop)
+    Qc = pre(chi, D, tau, nstart, nkoop)
+end
 
-    # TODO: compare to coupled memberships obtained from from `D` using
-    # tensor `eigenfuns` => PCCA+
-    # sparse `sparse_Q` => PCCA+
+outerprod(c) = reshape(kron(reverse(c)...), length.(c)...)
 
-    # TODO: extend to higher dims (n interacting "particle-potentials")
-    # Q = [SqraCore.sqra_grid(V.(grid); beta=1, h=1) for V in potentials[1:ndims]]
-    # chis = [PCCAPlus.pcca(Q[i], nchi) for i in 1:length(Q)]
-    # outerprod(c...) = reshape(kron(reverse(c)), length.(c)...)
-    # chi = stack(outerprod(c...) for c in Iterators.product(chis))
+function example_nd(;
+    nx=6, tau=1.0, nkoop=100, nstart=10, nchi=2, nsys=3
+)
 
-    # TODO: alternative: extend to higher dims (2 potentials + 1 interaction)
+    V(x) = (x[1]^2 - 1)^2
+    Vc(x) = abs2(x[1] - x[2]) / 2
+
+    grid1 = range(-2, 2, nx)
+    grid = fill(grid1, nsys)
+
+    potentials = [[V for i in 1:nsys]; [Vc for i in 1:(nsys-1)]]
+    indices = [[[i] for i in 1:nsys]; [[i, i + 1] for i in 1:(nsys-1)]]
+
+    beta = 1
+    h = step(grid1)
+
+    Qi = SqraCore.sqra_grid(V.(grid1); beta, h) |> collect
+
+    chi1, _, _ = PCCAPlus.pcca(Qi, nchi)
+    chi1 = collect.(eachcol(chi1))
+    chis = fill(chi1, nsys)
+
+    chi = stack(vec([outerprod(c) for c in Iterators.product(chis...)]))
+
+    # compute coupled stationary density
+    D = compute_D(potentials, indices, grid)
+
+    Qc = pre(chi, D, tau, nstart, nkoop)
+
+    QQ = spcca(D, nchi^nsys)
+    Base.@locals
+end
+
+include("apply_a.jl")
+include("tensorops.jl")
+include("eigen.jl")
+
+function tpcca(D, n, chi0; kwargs...)
+    chi0 = reshape(chi0, :, size(chi0)[end])[:, end]
+    E = compute_E(D)
+    evs, X, f = eigenfuns(D, E; initialguess=chi0, n, kwargs...)
+    A = PCCAPlus.basistransform(X, true)
+    return X * A
+end
+
+function spcca(D, n; kwargs...)
+    Q = sparse_Q(D)
+    for i in 1:size(Q, 1)
+        Q[i, i] = -sum(Q[i, :]) + Q[i, i]
+    end
+    pcca(Q, n, solver=KrylovSolver())[1]
 end

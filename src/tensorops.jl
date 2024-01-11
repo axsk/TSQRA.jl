@@ -70,8 +70,21 @@ function reconstruct_matrix_sparse(action, len; maxcol=len)
     return A
 end
 
-function sparse_Q(D, E, maxcol=10)
+function sparse_Q(D, E=compute_E(D), maxcol=10)
     Q(x) = apply_Q(x, vec(E), vec(D), size(D))
     reconstruct_matrix_sparse(Q, length(D); maxcol)
 end
 
+struct QAction1{T}
+    D::T
+    E::T
+end
+
+QAction = QAction1
+
+Base.eltype(::QAction{T}) where {T} = eltype(T)
+Base.size(Q::QAction, dim) = length(Q.D)
+function LinearAlgebra.mul!(y, Q, x)
+    D, E = Q
+    apply_A_banded!(y, x .* D, size(D)) ./ D
+end
