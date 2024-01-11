@@ -70,36 +70,47 @@ function reconstruct_matrix_sparse(action, len)
     return A
 end
 
-function sparse_Q(D, E=compute_E(D))
+function sparse_Q(D; E=compute_E(D), beta=1)
     Q(x) = apply_Q(x, vec(D), vec(E), size(D))
-    reconstruct_matrix_sparse(Q, length(D))
+    reconstruct_matrix_sparse(Q, length(D)) ./ beta
 end
 
 
 # this supports eg. ExponentialUtilities.expv
-struct QTensor{T}
+struct QTensor{T} #<: AbstractMatrix{eltype(T)}
     D::T
     E::T
+    beta::eltype(T)
 end
 
-QTensor(D) = QTensor(D, reshape(compute_E(D), size(D)))
+QTensor(D, beta=1) = QTensor(D, reshape(compute_E(D), size(D)), beta)
 
 Base.eltype(::QTensor{T}) where {T} = eltype(T)
 Base.size(Q::QTensor, dim) = length(Q.D)
+function Base.size(Q::QTensor)
+    n = length(Q.D)
+    (n, n)
+end
 LinearAlgebra.ishermitian(Q::QTensor) = false
 #LinearAlgebra.opnorm(A, p=Inf)
 
-function LinearAlgebra.mul!(y, Q::QTensor, x)
+function LinearAlgebra.mul!(y, Q::QTensor, x::AbstractVector)
     D, E = Q.D, Q.E
-    D = reshape(D, :)
-    E = reshape(E, :)
-    #apply_A_banded!(y, x .* D, size(D)) ./ D
-    #y .-= E .* x
-    y .= apply_Q(x, D, E)
+    D = vec(D)
+    E = vec(E)
+    apply_A_banded!(y, x .* D, size(Q.D))
+    y .= (y ./ Di(D) .- E .* x) ./ Q.beta
+end
+
+function LinearAlgebra.mul!(y, Q::QTensor, x::AbstractMatrix)
+    for i in 1:size(x, 2)
+        @views mul!(y[:, i], Q, x[:, i])
+    end
+    y
 end
 
 import Base.*
 *(Q::QTensor, x) = mul!(similar(x), Q, x)
 
 using SparseArrays
-SparseArrays.sparse(Q::QTensor) = sparse_Q(Q.D, Q.E)
+SparseArrays.sparse(Q::QTensor) = sparse_Q(Q.D; E=Q.E, beta=Q.beta)
