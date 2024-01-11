@@ -7,12 +7,12 @@ include("tsqra_simple.jl")
 
 Tensor = AbstractArray
 
-""" Gillespie for SQRA Tensor Q """
-function gillespie(i::CartesianIndex, Q::Tensor, T::Float64)
-    ni = neighboroffsets(Q)
+""" Gillespie for SQRA via stationary tensor D """
+function gillespie(i::CartesianIndex, D::Tensor, T::Float64)
+    ni = neighboroffsets(D)
     t = 0.0
     while true
-        out = neighborrates(i, Q, ni)
+        out = neighborrates(i, D, ni)
         cs = cumsum(out)
         rate = cs[end]
         t += randexp() / rate
@@ -86,7 +86,7 @@ function example(; nx=50, tau=1.0, nkoop=100, nstart=10, nchi=2)
     # compute combined membership function
     chi = stack(c1 .* c2' for c1 in eachcol(chi1) for c2 in eachcol(chi2))
 
-    # compute coupled rate matrix
+    # compute coupled stationary density
     D = compute_D(potentials, indices, [grid, grid])
 
     # PRE for coupled rate matrix with combined memberships as intial guess
