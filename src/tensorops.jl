@@ -46,6 +46,11 @@ function apply_AE(x::AbstractVector, E::AbstractVector, s)
     return y
 end
 
+""" modal_sum!(x,y,modes)
+
+Widened hadamard sum.
+Adds y to x along the dimensions specified in the array `modes`,
+broadcasting over the other dimensions."""
 function modal_sum!(x, y, modes)
     s = ones(Int, length(size(x)))
     s[modes] .= size(y)

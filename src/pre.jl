@@ -93,14 +93,14 @@ function example(; nx=50, tau=1.0, nkoop=100, nstart=10, nchi=2)
     Q = pre(chi, D, tau, nstart, nkoop)
 
     # TODO: compare to coupled memberships obtained from from `D` using
-    # E = apply_A(D, size(D)) ./ D  # c.f. also `tensor_sqra()`
-    # - either `eigenfuns` => PCCA+ from eigenfuns
-    # - or `sparse_Q` => PCCA+ from sparse Q
+    # tensor `eigenfuns` => PCCA+
+    # sparse `sparse_Q` => PCCA+
 
-    # TODO: extend to higher dims (n interacting potentials)
+    # TODO: extend to higher dims (n interacting "particle-potentials")
     # Q = [SqraCore.sqra_grid(V.(grid); beta=1, h=1) for V in potentials[1:ndims]]
     # chis = [PCCAPlus.pcca(Q[i], nchi) for i in 1:length(Q)]
-    # chi = resize(kron(reverse(chis), length.(chis)...)  # not really correct, have to account for combinations of chis
+    # outerprod(c...) = reshape(kron(reverse(c)), length.(c)...)
+    # chi = stack(outerprod(c...) for c in Iterators.product(chis))
 
     # TODO: alternative: extend to higher dims (2 potentials + 1 interaction)
 end
