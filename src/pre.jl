@@ -5,8 +5,10 @@ using SqraCore
 using PCCAPlus
 include("tsqra_simple.jl")
 
+Tensor = AbstractArray
+
 """ Gillespie for SQRA Tensor Q """
-function gillespie(i::CartesianIndex, Q::AbstractArray, T::Float64)
+function gillespie(i::CartesianIndex, Q::Tensor, T::Float64)
     ni = neighboroffsets(Q)
     t = 0.0
     while true
@@ -42,13 +44,16 @@ Kchi_gillespie(start, chi, D, tau, nkoop) =
     end
 
 """ Compute the macroscopic rate approximation """
-function pre(chi, D, tau, nkoop, nstart)
-    starts = rand(CartesianIndices(Qc), nstart)
+function pre(chi::Tensor, D::Tensor, tau, nstart, nkoop)
+    @assert ndims(chi) == ndims(D) + 1
 
+    starts = rand(CartesianIndices(D), nstart)
     x = stack([chi[s, :] for s in starts])'
     Kx = stack(starts) do s
         Kchi_gillespie(s, chi, D, tau, nkoop)
     end'
+
+    # TODO: normalize?
 
     Kc = pinv(x) * Kx
     Qc = log(Kc ./ tau)
@@ -67,15 +72,35 @@ function example(; nx=50, tau=1.0, nkoop=100, nstart=10, nchi=2)
     potentials = [x -> V1(x[1]), x -> V2(x[1]), x -> V12(x[1], x[2])]
     indices = [[1], [2], [1, 2]]
 
-    Q1 = SqraCore.sqra_grid(V1.(grid); beta=1) |> collect
-    Q2 = SqraCore.sqra_grid(V2.(grid); beta=1) |> collect
+    # TODO: adjust beta (and h?)
+    beta = 1
+    h = step(grid)
 
+    Q1 = SqraCore.sqra_grid(V1.(grid); beta, h) |> collect  # collect to get dense
+    Q2 = SqraCore.sqra_grid(V2.(grid); beta, h) |> collect
+
+    # compute isolated membership functions
     chi1 = PCCAPlus.pcca(Q1, nchi)
     chi2 = PCCAPlus.pcca(Q2, nchi)
 
-    D = compute_D(potentials, indices, [grid, grid])
-
+    # compute combined membership function
     chi = stack(c1 .* c2' for c1 in eachcol(chi1) for c2 in eachcol(chi2))
 
-    Q = pre(chi, D, tau, nkoop, nstart)
+    # compute coupled rate matrix
+    D = compute_D(potentials, indices, [grid, grid])
+
+    # PRE for coupled rate matrix with combined memberships as intial guess
+    Q = pre(chi, D, tau, nstart, nkoop)
+
+    # TODO: compare to coupled memberships obtained from from `D` using
+    # E = apply_A(D, size(D)) ./ D  # c.f. also `tensor_sqra()`
+    # - either `eigenfuns` => PCCA+ from eigenfuns
+    # - or `sparse_Q` => PCCA+ from sparse Q
+
+    # TODO: extend to higher dims (n interacting potentials)
+    # Q = [SqraCore.sqra_grid(V.(grid); beta=1, h=1) for V in potentials[1:ndims]]
+    # chis = [PCCAPlus.pcca(Q[i], nchi) for i in 1:length(Q)]
+    # chi = resize(kron(reverse(chis), length.(chis)...)  # not really correct, have to account for combinations of chis
+
+    # TODO: alternative: extend to higher dims (2 potentials + 1 interaction)
 end
