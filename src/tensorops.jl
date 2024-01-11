@@ -27,10 +27,10 @@ end
 # VALUEFIX
 Di(D) = replace(D, 0 => convert(eltype(D), Inf))
 
-apply_Q(x, E, D) = reshape(apply_Q(vec(x), vec(E), vec(D), size(D)), size(x))
-apply_AE(x, E) = reshape(apply_AE(vec(x), vec(E), size(D)), size(x))
+apply_Q(x, D, E) = reshape(apply_Q(vec(x), vec(D), vec(E), size(D)), size(x))
+apply_AE(x, E) = reshape(apply_AE(vec(x), vec(E), size(E)), size(x))
 
-function apply_Q(x::AbstractVector, E::AbstractVector, D::AbstractVector, s)
+function apply_Q(x::AbstractVector, D::AbstractVector, E::AbstractVector, s)
     y = apply_Qo(x, D, s)
     y .-= E .* x
     return y
@@ -60,9 +60,9 @@ function modal_sum!(x, y, modes)
 end
 
 using SparseArrays
-function reconstruct_matrix_sparse(action, len; maxcol=len)
+function reconstruct_matrix_sparse(action, len)
     A = spzeros(len, len)
-    for i in 1:maxcol
+    for i in 1:len
         x = zeros(len)
         x[i] = 1
         A[:, i] = action(x)
@@ -70,21 +70,36 @@ function reconstruct_matrix_sparse(action, len; maxcol=len)
     return A
 end
 
-function sparse_Q(D, E=compute_E(D), maxcol=10)
-    Q(x) = apply_Q(x, vec(E), vec(D), size(D))
-    reconstruct_matrix_sparse(Q, length(D); maxcol)
+function sparse_Q(D, E=compute_E(D))
+    Q(x) = apply_Q(x, vec(D), vec(E), size(D))
+    reconstruct_matrix_sparse(Q, length(D))
 end
 
-struct QAction1{T}
+
+# this supports eg. ExponentialUtilities.expv
+struct QTensor{T}
     D::T
     E::T
 end
 
-QAction = QAction1
+QTensor(D) = QTensor(D, reshape(compute_E(D), size(D)))
 
-Base.eltype(::QAction{T}) where {T} = eltype(T)
-Base.size(Q::QAction, dim) = length(Q.D)
-function LinearAlgebra.mul!(y, Q, x)
-    D, E = Q
-    apply_A_banded!(y, x .* D, size(D)) ./ D
+Base.eltype(::QTensor{T}) where {T} = eltype(T)
+Base.size(Q::QTensor, dim) = length(Q.D)
+LinearAlgebra.ishermitian(Q::QTensor) = false
+#LinearAlgebra.opnorm(A, p=Inf)
+
+function LinearAlgebra.mul!(y, Q::QTensor, x)
+    D, E = Q.D, Q.E
+    D = reshape(D, :)
+    E = reshape(E, :)
+    #apply_A_banded!(y, x .* D, size(D)) ./ D
+    #y .-= E .* x
+    y .= apply_Q(x, D, E)
 end
+
+import Base.*
+*(Q::QTensor, x) = mul!(similar(x), Q, x)
+
+using SparseArrays
+SparseArrays.sparse(Q::QTensor) = sparse_Q(Q.D, Q.E)

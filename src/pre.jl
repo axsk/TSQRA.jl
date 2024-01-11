@@ -44,13 +44,19 @@ Kchi_gillespie(start, chi, D, tau, nkoop) =
     end
 
 """ Compute the macroscopic rate approximation """
-function pre(chi::Tensor, D::Tensor, tau, nstart, nkoop)
+function pre(chi::Tensor, D::Tensor, tau, nstart, nkoop; exact=false)
     @assert ndims(chi) == ndims(D) + 1
+
+    Q = QTensor(D)  # only needed for exact
 
     starts = rand(CartesianIndices(D), nstart)
     x = stack([chi[s, :] for s in starts])'
     Kx = stack(starts) do s
-        Kchi_gillespie(s, chi, D, tau, nkoop)
+        if exact
+            expv(tau, Q, s)
+        else
+            Kchi_gillespie(s, chi, D, tau, nkoop)
+        end
     end'
 
     # TODO: normalize?
@@ -92,6 +98,7 @@ function example(; nx=50, tau=1.0, nkoop=100, nstart=10, nchi=2)
 
     # PRE for coupled rate matrix with combined memberships as intial guess
     Qc = pre(chi, D, tau, nstart, nkoop)
+    NamedTuple(Base.@locals)
 end
 
 outerprod(c) = reshape(kron(reverse(c)...), length.(c)...)
@@ -126,7 +133,7 @@ function example_nd(;
     Qc = pre(chi, D, tau, nstart, nkoop)
 
     QQ = spcca(D, nchi^nsys)
-    Base.@locals
+    NamedTuple(Base.@locals)
 end
 
 include("apply_a.jl")
@@ -147,4 +154,23 @@ function spcca(D, n; kwargs...)
         Q[i, i] = -sum(Q[i, :]) + Q[i, i]
     end
     pcca(Q, n, solver=KrylovSolver())[1]
+end
+
+using ExponentialUtilities: expv
+
+""" Compute the macroscopic rate approximation """
+function pre_exact(chi::Tensor, D::Tensor, tau, nstart, nkoop)
+    @assert ndims(chi) == ndims(D) + 1
+
+    starts = rand(CartesianIndices(D), nstart)
+    x = stack([chi[s, :] for s in starts])'
+    Kx = stack(starts) do s
+        expv(tau, Q, s)
+        # Kchi_gillespie(s, chi, D, tau, nkoop)
+    end'
+
+    # TODO: normalize?
+
+    Kc = pinv(x) * Kx
+    Qc = log(Kc ./ tau)
 end
