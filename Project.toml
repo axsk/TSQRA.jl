@@ -1,3 +1,9 @@
+name = "TSQRA"
+uuid = "58033cbc-82b9-4012-9ecc-bdbbaa2c74f2"
+authors = ["Sikorski <sikorski@zib.de>"]
+version = "0.1.0"
+
+
 [deps]
 AxisAlgorithms = "13072b0f-2c55-5437-9ae7-d433b7a33950"
 BandedMatrices = "aae01518-5342-5314-be14-df237901396f"
