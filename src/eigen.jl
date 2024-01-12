@@ -11,7 +11,7 @@ function eigenfuns(D::Array{T}, E::Array{T};
     n=5,
     maxiter=100,
     tol=1e-6,
-    verbosity=1) where {T}
+    verbosity=0) where {T}
 
     s = Tuple(size(D))
 
@@ -19,27 +19,34 @@ function eigenfuns(D::Array{T}, E::Array{T};
     inds = vec(D) .> 0
 
     x0 = isnothing(initialguess) ? rand(T, sum(inds)) : initialguess[inds]
+
     xt = zeros(T, length(D))
+    xx = similar(x0)
+    E = vec(E)
 
     function Q(x)
-        #GC.gc()
         xt[inds] .= x
-        #println(now())
-        xx = vec(apply_AE(vec(xt), vec(E), s))
-        #GC.gc()
+        apply_AE!(xx, xt, E, s)
         xx[inds]
     end
 
-    GC.gc()
+    evs, efs, info = KrylovKit.eigsolve(Q, x0, n, :LR; verbosity, tol, maxiter, issymmetric=false)
 
-    f = @time "solving eigenproblem" KrylovKit.eigsolve(
-        Q, x0, n, :LR; verbosity, tol, maxiter, issymmetric=false)
+    # TODO: these are efs of AE not D^inv AE D
+    efs = stack(efs)
 
-    efs = zeros(T, length(D), n)
-    for i in 1:n
-        efs[inds, i] = f[2][i]
-    end
-
-    evs = f[1]
     return evs, efs, f
+end
+
+
+
+function timeeigs(Q::QTensor; n=5,
+    maxiter=100,
+    tol=1e-6,
+    verbosity=0)
+
+    @time eigenfuns(Q.D, Q.E; n, verbosity, tol, maxiter)
+    Qs = SqraCore.sqra_grid(getpi(D), beta=getbeta())
+    @time eigsolve(Qs, n, :LR; verbosity, tol, maxiter, issymmetric=false)
+    return
 end

@@ -54,7 +54,7 @@ function Kchi_gillespie(start, chi, D, tau, nkoop, beta)
 end
 
 """ Compute the macroscopic rate approximation """
-function pre(chi::Tensor, D::Tensor, tau, nstart, nkoop, beta=beta())
+function pre(chi::Tensor, D::Tensor, tau, nstart, nkoop, beta=getbeta())
     @assert ndims(chi) == ndims(D) + 1
 
     starts = rand(CartesianIndices(D), nstart)
@@ -74,29 +74,24 @@ end
 
 ### PRE 2
 using ExponentialUtilities
+
 rownormalize!(x) = x ./= sum(x, dims=2)
-
 """ Computation of Qc via multistep (t->t+dt) PRE with exact propagation (expv) """
-function pre2(Q, chi::AbstractMatrix, dt, t0=0, normalize=0)
-    chi1 = stack(eachcol(chi)) do c
-        expv(t0, Q, c)
-    end
-
-    chi2 = stack(eachcol(chi1)) do c
-        expv(dt, Q, c)
-    end
-
-    normalize == 1 && (rownormalize!(chi1); rownormalize!(chi2))
-
+function pre2(Q, chi::AbstractMatrix, dt, t0=0, normalize=false)
+    chi1 = expv(t0, Q, chi)
+    chi2 = expv(dt, Q, chi1)
+    normalize && rownormalize!.((chi1, chi2))
     Kc = pinv(chi1) * chi2
-
-    normalize == 2 && rownormalize!(Kc)
-
     Qc = log(Kc) ./ dt
-
     return Qc
 end
 
+import ExponentialUtilities: expv
+
+# expend expv to colums of matrices
+function expv(t, A, b::AbstractMatrix)
+    stack(c -> expv(t, A, c), eachcol(b))
+end
 
 ### EXAMPLES
 
@@ -113,7 +108,7 @@ function example1(; nx=50, dt=1.0, nkoop=100, nstart=10, nchi=2, t0=0)
     indices = [[1], [2], [1, 2]]
 
     # TODO: adjust beta (and h?)
-    beta = beta()
+    beta = getbeta()
     h = step(grid)
 
     @time Q1 = SqraCore.sqra_grid(V1.(grid); beta, h) |> collect  # collect to get dense
@@ -145,10 +140,9 @@ function example1(; nx=50, dt=1.0, nkoop=100, nstart=10, nchi=2, t0=0)
     NamedTuple(Base.@locals)
 end
 
-outerprod(c) = reshape(kron(reverse(c)...), length.(c)...)
 
-function example2(; nx=5, dt=1.0, nkoop=100, nstart=10, nchi=2, nsys=3, t0=0.0, beta=beta())
 
+function example2(; nx=5, dt=1.0, nkoop=100, nstart=10, nchi=2, nsys=3, t0=0.0, beta=getbeta())
     V(x) = (x[1]^2 - 1)^2
     Vc(x) = abs2(x[1] - x[2]) / 2
 
@@ -162,55 +156,78 @@ function example2(; nx=5, dt=1.0, nkoop=100, nstart=10, nchi=2, nsys=3, t0=0.0, 
 
     Qi = SqraCore.sqra_grid(V.(grid1); beta, h) |> collect
 
-    chi1, _, _ = PCCAPlus.pcca(Qi, nchi)
-    chi1 = collect.(eachcol(chi1))
-    chis = fill(chi1, nsys)
+    chi1 = PCCAPlus.pcca(Qi, nchi).chi
 
-    chi = stack(vec([outerprod(c) for c in Iterators.product(chis...)]))
+    allchis = outerprodprod((chi1 for i in 1:nsys)...)
 
+    chi = allchis[:, [1]]
+    chi = allchis
     # compute coupled stationary density
     D = compute_D(potentials, indices, grid, beta)
-
-    Qc1 = pre(chi, D, dt, nstart, nkoop)
-
     Q = QTensor(D, beta)
-    chif = reshape(chi, :, size(chi)[end])
 
-    Qc2 = pre2(Q, chif, dt, t0)
+    #Qc1 = pre(chi, D, dt, nstart, nkoop)
 
-    Qs = sparse(Q)
-    chic = pcca(Qs, size(chif, 2), solver=KrylovSolver(), optimize=true)[1]
-    Qc = pinv(chic) * Qs * chic
+
+    Qc2 = pre2(Q, chi, dt, t0)
+
+    if length(grid)^nsys < 1000
+        #(; Qs, chic, Qc) = Qc_full(Q, nchi^nsys)
+    end
+
+    @exfiltrate
     NamedTuple(Base.@locals)
+end
+
+function outerprod(c)
+    reshape(kron(reverse(c)...), length.(c)...)
+end
+
+function outerprodprod(As...)
+    mapreduce(hcat, Iterators.product(eachcol.(As)...)) do c
+        outerprod(c) |> vec
+    end
+end
+
+function Qc_full(Q, nc)
+    Qs = sparse(Q)
+    # could use direct eigensolve + pcca
+    chic = pcca(Qs, nc, solver=KrylovSolver(), optimize=true)[1]
+    Qc = pinv(chic) * Qs * chic
+    return (; Qs, chic, Qc)
+end
+
+function kroneigenfuns(chi, Q, dim, nc)
+    Qc = pinv(chi) * Q * chi
+    @show v = diag(Qc)
+    @show cv = collect(zip(eachcol(chi), v))
+    r = []
+    for i in Iterators.product([cv for i in 1:dim]...)
+        @show vecs, eigenvals = zip(i...)
+        push!(r, (outerprod(vecs), sum(eigenvals)))
+        #@show size(outerprod(c))
+    end
+    sort(r, by=x -> x[2])
 end
 
 using Plots
 function plot_dt_dependence!(; dts=[0.1, 1, 2, 5, 10, 15] .* 0.1, kwargs...)
 
-    (; chi, D, nstart, nkoop, Q, chif, t0) = NamedTuple(kwargs)
+    (; D, nstart, nkoop, Q, chi, t0) = NamedTuple(kwargs)
 
     p1(dt) = pre(chi, D, dt, nstart, nkoop)
-    p2(dt) = pre2(Q, chif, dt, t0)
-
+    p2(dt) = pre2(Q, chi, dt, t0)
 
     @time x = stack(dts) do dt
         diag(p2(dt))
     end .|> real
-    ylims = extrema(x)
-    p2 = plot(dts, x', title="PRE2"; ylims, legend=false, xaxis=:log)
-
-    #@time x = stack(dts) do dt
-    #    diag(p1(dt))
-    #end .|> real
-    #p1 = plot(dts, x', title="PRE1")#; ylims)
-
-    #plot(p1, p2)
+    p2 = plot(dts, x', title="PRE2"; legend=false)
 end
 
 # compute the coupled chi directly from the coupled Q
 function chicoup()
-    Dcoup = compute_D(potentials[1:3], indices[1:3], grid, beta())
-    Qcoup = sparse_Q(Dcoup) ./ beta()
+    Dcoup = compute_D(potentials[1:3], indices[1:3], grid, getbeta())
+    Qcoup = sparse_Q(Dcoup) ./ getbeta()
     chicoup = pcca(Qcoup, 8, solver=KrylovSolver(), optimize=true)[1]
 end
 

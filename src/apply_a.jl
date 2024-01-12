@@ -1,9 +1,4 @@
-using AxisAlgorithms
-using TensorOperations: tensorcontract
-using LinearAlgebra
-using SparseArrays
-
-# compute the application of A by looping through all A=1 entries and adding the corresponding x entries
+""" compute the application of A by looping through all A=1 entries and adding the corresponding x entries """
 function apply_A_banded!(y::AbstractVector, x::AbstractVector, dims::NTuple{N,Int}) where {N}
     y .= 0
     len = length(x)
@@ -13,11 +8,6 @@ function apply_A_banded!(y::AbstractVector, x::AbstractVector, dims::NTuple{N,In
         @inbounds for i in 1:bs:len-off
             bso = bs - off
             to = i:i+bso-1
-
-            # multithreaded blas version, somehow slower
-            #@views axpy!(true, x[to], y[to.+off])
-            #@views axpy!(true, x[to.+off], y[to])
-
             @views y[to] .+= x[to.+off]
             @views y[to.+off] .+= x[to]
         end
@@ -25,6 +15,13 @@ function apply_A_banded!(y::AbstractVector, x::AbstractVector, dims::NTuple{N,In
     end
     return y
 end
+
+#=
+
+using AxisAlgorithms
+using TensorOperations: tensorcontract
+using LinearAlgebra
+using SparseArrays
 
 # somehow manually reshaping saves time here
 function apply_A_banded(x, s=Tuple(size(x)); kwargs...)
@@ -180,3 +177,5 @@ function benchmark2(;
     nothing
 
 end
+
+=#
